@@ -1,0 +1,68 @@
+{
+  "name": "elk-style-rule",
+  "version": "0.1.0",
+  "description": "Framework-independent, type-safe CSS-in-JS for inline styles, generated classes, pseudo selectors, themes, and responsive media rules.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "docs",
+    "README.md",
+    "llms.txt",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "lint": "oxlint src",
+    "check": "npm run lint && npm test && npm run build",
+    "prepublishOnly": "npm run check"
+  },
+  "keywords": [
+    "css-in-js",
+    "typescript",
+    "styles",
+    "pseudo-class",
+    "responsive",
+    "media-query",
+    "hover",
+    "theming",
+    "react",
+    "frontend",
+    "elk"
+  ],
+  "author": "ElktrumElk",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ElktrumElk/EStyle.git"
+  },
+  "homepage": "https://github.com/ElktrumElk/EStyle#readme",
+  "bugs": {
+    "url": "https://github.com/ElktrumElk/EStyle/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "dependencies": {
+    "csstype": "^3.1.3"
+  },
+  "devDependencies": {
+    "jsdom": "^27.0.0",
+    "oxlint": "^1.71.0",
+    "typescript": "~6.0.2",
+    "vitest": "^4.1.10"
+  }
+}

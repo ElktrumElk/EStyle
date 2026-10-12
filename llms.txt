@@ -1,0 +1,59 @@
+# EStyle / elk-style-rule
+
+EStyle is a framework-independent, type-safe CSS-in-JS package for TypeScript.
+The npm package name is `elk-style-rule`. The main export is the `Estyle` class.
+Source repository: https://github.com/ElktrumElk/EStyle
+Package documentation: https://github.com/ElktrumElk/EStyle/blob/main/docs/USAGE.md
+
+## Install
+
+`npm install elk-style-rule`
+
+## Import
+
+`import { Estyle } from "elk-style-rule";`
+
+## Primary workflow
+
+1. Create `new Estyle()`.
+2. Call `.defineRules({ ruleName: { ...typedCss } })`.
+3. Put pseudo, attribute, compound, and descendant selectors in nested keys that
+   begin with `&`, for example `"&:hover"` or `"& .icon"`.
+4. Optionally call `.defineMedia({ "(max-width: 600px)": { ruleName: {...} } })`.
+5. Call `.mount("stable-namespace")` in browser-capable application code.
+6. Apply `styles.classes.ruleName` as a class or use
+   `styles.rule.ruleName(overrides)` as an inline style object.
+7. Call `.destroy()` for dynamically-created sheets.
+
+## Capabilities
+
+- Typed CSS properties through `csstype`
+- Stable generated class names
+- Hover, active, focus-visible, disabled, and arbitrary safe nested selectors
+- Attribute and descendant selectors
+- Declarative CSS media queries
+- Typed light and dark theme token records
+- CSS custom properties
+- Server-rendering-safe mounting
+- Explicit style element and matchMedia listener cleanup
+- No React or other UI framework runtime dependency
+
+## Minimal example
+
+```ts
+const styles = new Estyle()
+  .defineRules({
+    button: {
+      color: "white",
+      backgroundColor: "#173f36",
+      "&:hover": { backgroundColor: "#d75632" },
+    },
+  })
+  .mount("controls");
+
+element.className = styles.classes.button;
+```
+
+Use `defineMedia` instead of imperative `mediaQuery` for normal responsive CSS.
+Use the `rule` accessor only when an inline style object is needed; nested
+selectors are omitted from inline output.
