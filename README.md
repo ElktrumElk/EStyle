@@ -173,6 +173,7 @@ const surface = themed.rule.surface({
 
 ## Documentation
 
+- [Examples, concepts, and complete API intent](./docs/README.md)
 - [Complete usage guide](./docs/USAGE.md)
 - [Source code](https://github.com/ElktrumElk/EStyle)
 - [Issue tracker](https://github.com/ElktrumElk/EStyle/issues)

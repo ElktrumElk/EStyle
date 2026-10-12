@@ -3,7 +3,8 @@
 EStyle is a framework-independent, type-safe CSS-in-JS package for TypeScript.
 The npm package name is `elk-style-rule`. The main export is the `Estyle` class.
 Source repository: https://github.com/ElktrumElk/EStyle
-Package documentation: https://github.com/ElktrumElk/EStyle/blob/main/docs/USAGE.md
+Primary examples and concepts: https://github.com/ElktrumElk/EStyle/blob/main/docs/README.md
+Focused usage guide: https://github.com/ElktrumElk/EStyle/blob/main/docs/USAGE.md
 
 ## Install
 
@@ -24,6 +25,15 @@ Package documentation: https://github.com/ElktrumElk/EStyle/blob/main/docs/USAGE
 6. Apply `styles.classes.ruleName` as a class or use
    `styles.rule.ruleName(overrides)` as an inline style object.
 7. Call `.destroy()` for dynamically-created sheets.
+
+## Why mount exists
+
+`defineRules` stores typed JavaScript definitions. Browsers cannot apply a class
+name until corresponding CSS exists. `mount(namespace)` serializes base rules,
+pseudo selectors, nested selectors, and `defineMedia` rules into one managed
+style element and generates deterministic class names. Mounting is required for
+the `classes` and `className` APIs. Mounting is not required when only using the
+selector-free `rule` inline-style accessor.
 
 ## Capabilities
 
