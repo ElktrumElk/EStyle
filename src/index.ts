@@ -150,7 +150,7 @@ export class Estyle<
   setTheme<NextLight extends ThemeTokens, NextDark extends ThemeTokens = Record<string, never>>(
     theme: Theme<NextLight, NextDark>,
   ): Estyle<Rules, NextLight, NextDark> {
-    this.theme = { light: { ...theme.light }, dark: { ...(theme.dark ?? {}) } };
+    this.theme = { light: { ...theme.light }, dark: { ...theme.dark } };
     return this as unknown as Estyle<Rules, NextLight, NextDark>;
   }
 
