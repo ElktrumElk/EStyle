@@ -6,20 +6,29 @@
 
 Framework-independent, type-safe CSS-in-JS for TypeScript applications.
 EStyle uses one typed definition for inline style objects, stable generated
-classes, pseudo classes, descendant and attribute selectors, theme tokens, and
-responsive media queries.
+classes, pseudo classes and elements, descendant and attribute selectors,
+`@keyframes`, theme tokens, responsive media queries, and instant, FOUC-free
+style injection.
 
 ## Why EStyle?
 
 - **Type-safe CSS:** property names and values use `csstype` definitions.
 - **Real pseudo classes:** define `:hover`, `:active`, `:focus-visible`, and
   `:disabled` beside base styles.
+- **Pseudo elements:** style `&::before`, `&::after`, `&::placeholder`,
+  `&::selection`, and other pseudo elements with the same nested syntax.
+- **Typed `@keyframes`:** define animations once and reuse the generated,
+  collision-free animation names.
+- **No flash of unstyled content:** the stylesheet is injected synchronously as
+  rules are defined, before the first paint, so the page never shows an
+  unstyled state.
 - **Responsive styling:** generate normal CSS `@media` rules without resize
   listeners or component rerenders.
 - **Framework independent:** works with React, Elk Components, Vue, Svelte, and
   plain DOM applications.
-- **SSR safe:** class names are deterministic and `mount()` does not fail when
-  `document` is unavailable.
+- **SSR safe:** class names are deterministic, `mount()` does not fail when
+  `document` is unavailable, and `getStyles()` returns critical CSS for the
+  server-rendered `<head>`.
 - **Small API:** no provider, compiler plugin, runtime JSX transform, or global
   registry is required.
 - **Explicit cleanup:** dynamically-created sheets and media listeners can be
@@ -50,6 +59,7 @@ export const styles = new Estyle()
       "&:focus-visible": { outline: "3px solid #4668df" },
       "&[data-active=\"true\"]": { backgroundColor: "#4668df" },
       "& .icon": { marginRight: ".5rem" },
+      "&::before": { content: "\"★\"" },
     },
   })
   .defineMedia({
@@ -114,6 +124,97 @@ const navigation = new Estyle()
 Unsafe selector syntax is rejected rather than injected into the generated
 stylesheet.
 
+## Pseudo Elements
+
+Pseudo elements use the same `&` nesting and are serialized into the generated
+stylesheet with a double colon:
+
+```ts
+const card = new Estyle()
+  .defineRules({
+    card: {
+      position: "relative",
+      "&::before": { content: "\"\"", position: "absolute", inset: 0 },
+      "&::after": { content: "\"→\"", marginLeft: ".25rem" },
+      "&::selection": { backgroundColor: "#d8f36a" },
+    },
+  })
+  .mount("card");
+
+card.classes.card; // "card-card-<hash>"
+```
+
+Pseudo elements are omitted from `rule.card()` inline output because browser
+inline styles cannot express them.
+
+## Keyframes
+
+Define animations with `defineKeyframes()` and reuse the generated, namespaced
+animation names through the `keyframes` accessor. This avoids global name
+collisions and keeps animation definitions next to the rules that use them:
+
+```ts
+const styles = new Estyle();
+
+styles.defineKeyframes({
+  fadeIn: {
+    from: { opacity: 0, transform: "translateY(8px)" },
+    to: { opacity: 1, transform: "translateY(0)" },
+  },
+});
+
+styles
+  .defineRules({
+    card: {
+      animationName: styles.keyframes.fadeIn,
+      animationDuration: "300ms",
+      animationTimingFunction: "ease",
+    },
+  })
+  .mount("keyframes");
+```
+
+Keyframe stops accept `from`, `to`, and percentage keys such as `"50%"`. Invalid
+stops are rejected rather than emitted. Keyframe names are generated when
+`defineKeyframes()` runs; set a constructor `namespace` if you want the keyframe
+prefix to match a later `mount()` namespace.
+
+## Instant Injection And No FOUC
+
+By default styles are injected synchronously as soon as rules are defined, not
+only when `mount()` runs. The `<style>` element is inserted at the front of
+`<head>` so browsers apply it before the first paint and never render an
+unstyled document:
+
+```ts
+import { Estyle } from "elk-style-rule";
+
+// Injected immediately in the browser; no unstyled first frame.
+export const styles = new Estyle()
+  .defineRules({ app: { minHeight: "100vh" } })
+  .mount("app");
+```
+
+Configure injection through the constructor:
+
+```ts
+const styles = new Estyle({
+  namespace: "app",   // stable class and keyframe prefix
+  prepend: true,       // insert before other <head> nodes (default)
+  nonce: "csp-nonce",  // Content Security Policy nonce
+  strategy: "auto",    // "style" (default), "adopted", or "auto"
+  autoInject: true,    // inject during defineRules (default)
+});
+```
+
+- `autoInject: false` defers injection until `mount()` or `inject()`.
+- `inject()` attaches the generated sheet on demand.
+- `strategy: "adopted"` uses constructable stylesheets (`document.adoptedStyleSheets`)
+  when the browser supports them; `"auto"` prefers them and falls back to a
+  `<style>` element.
+- `getStyles()` returns the generated CSS for server rendering so critical CSS
+  can be inlined directly into the `<head>`, eliminating the flash entirely.
+
 ## Responsive Rules
 
 `defineMedia()` emits declarative media queries:
@@ -161,10 +262,15 @@ const surface = themed.rule.surface({
 
 | API | Purpose |
 | --- | --- |
+| `new Estyle(options)` | Configure namespace, injection, prepend, nonce, and strategy |
 | `defineRules(rules)` | Define typed base styles and infer rule names |
 | `defineMedia(media)` | Generate declarative responsive CSS |
-| `mount(namespace)` | Mount one managed stylesheet and generate classes |
+| `defineKeyframes(frames)` | Define typed `@keyframes` and generate stable names |
+| `mount(namespace, options?)` | Mount one managed stylesheet and generate classes |
+| `inject(options?)` | Attach the generated stylesheet on demand |
+| `getStyles()` / `toString()` | Return generated CSS, e.g. for SSR critical CSS |
 | `classes` / `className` | Read stable generated class names |
+| `keyframes` | Read generated `@keyframes` animation names |
 | `rule` | Create selector-free inline style objects |
 | `setTheme(theme)` | Store typed light and dark tokens |
 | `dynamicTheme(mode)` | Read the selected token record |

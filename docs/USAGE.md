@@ -55,7 +55,10 @@ card.className = styles.classes.card;
 ```
 
 The namespace keeps independently-created sheets readable and isolated. A rule
-class remains stable for the same namespace and rule name.
+class remains stable for the same namespace and rule name. In the browser, the
+stylesheet is injected as soon as rules are defined (see
+[Instant Style Injection](#instant-style-injection)), so `mount()` only needs to
+be called when you want to set or change the namespace.
 
 In React or Elk components:
 
@@ -148,6 +151,121 @@ Multiple selectors can be grouped when every selector begins with `&`:
 }
 ```
 
+## Pseudo Elements
+
+Pseudo elements use the same nested `&` syntax with a double colon:
+
+```ts
+const card = new Estyle()
+  .defineRules({
+    card: {
+      position: "relative",
+      "&::before": {
+        content: "\"\"",
+        position: "absolute",
+        inset: 0,
+        borderRadius: "inherit",
+        backgroundColor: "rgba(70, 104, 223, 0.08)",
+      },
+      "&::after": {
+        content: "\"→\"",
+        marginLeft: ".25rem",
+        color: "#4668df",
+      },
+      "&::selection": {
+        backgroundColor: "#d8f36a",
+      },
+    },
+  })
+  .mount("card");
+```
+
+Pseudo elements are omitted from `styles.rule.card()` inline output because
+browser inline styles cannot express them. Use the generated class instead.
+
+## Keyframes
+
+Declare animations with `defineKeyframes()`. Each animation receives a
+namespace-safe generated name, available through the `keyframes` accessor, so
+multiple sheets can define the same animation name without colliding:
+
+```ts
+const styles = new Estyle();
+
+styles.defineKeyframes({
+  fadeIn: {
+    from: { opacity: 0, transform: "translateY(8px)" },
+    to: { opacity: 1, transform: "translateY(0)" },
+  },
+  pulse: {
+    "0%": { boxShadow: "0 0 0 0 rgba(215, 86, 50, 0.55)" },
+    "70%": { boxShadow: "0 0 0 14px rgba(215, 86, 50, 0)" },
+    "100%": { boxShadow: "0 0 0 0 rgba(215, 86, 50, 0)" },
+  },
+});
+
+styles
+  .defineRules({
+    card: {
+      animationName: styles.keyframes.fadeIn,
+      animationDuration: "300ms",
+      animationFillMode: "both",
+    },
+    badge: {
+      animationName: styles.keyframes.pulse,
+      animationIterationCount: "infinite",
+      animationDuration: "1.8s",
+    },
+  })
+  .mount("animations");
+```
+
+Keyframe stops may be `from`, `to`, or a percentage such as `"50%"`. Any other
+stop is rejected instead of being written to the stylesheet. Keyframe names are
+generated when `defineKeyframes()` runs. If you want the keyframe prefix to
+match a namespace passed later to `mount()`, set the namespace on the
+constructor: `new Estyle({ namespace: "animations" })`.
+
+## Instant Style Injection
+
+EStyle injects the generated stylesheet synchronously as rules are defined. The
+`<style>` element is inserted at the front of `<head>`, so the browser applies
+the styles before the first paint and never renders an unstyled document:
+
+```ts
+import { Estyle } from "elk-style-rule";
+
+// Styles are already in the document after this statement in a browser.
+export const styles = new Estyle()
+  .defineRules({ app: { minHeight: "100vh" } })
+  .mount("app");
+```
+
+Constructor options control injection:
+
+```ts
+const styles = new Estyle({
+  namespace: "app",
+  prepend: true,
+  nonce: "csp-nonce",
+  strategy: "auto",
+  autoInject: true,
+});
+```
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `autoInject` | `true` | Inject while rules are defined instead of waiting for `mount()` |
+| `namespace` | `"estyle"` | Prefix for generated classes, keyframes, and the style element |
+| `prepend` | `true` | Insert the style element before other `<head>` nodes |
+| `nonce` | none | Content Security Policy nonce for the style element |
+| `strategy` | `"style"` | `"style"`, `"adopted"` (`document.adoptedStyleSheets`), or `"auto"` |
+
+Call `inject()` to attach the sheet on demand when `autoInject` is disabled.
+For production server rendering, emit `styles.getStyles()` inside the
+server-rendered `<head>`. That sends the critical CSS with the first HTML
+response and removes any chance of a flash of unstyled content.
+
 ## Responsive Rules
 
 Use `defineMedia()` for CSS media queries. These are emitted into the generated
@@ -230,9 +348,11 @@ const styles = new Estyle()
 styles.classes.page;
 ```
 
-For applications that need critical CSS extraction, mount the same module-level
-sheet in the browser. Class names remain deterministic for the namespace and
-rule keys.
+For applications that need critical CSS extraction, call `styles.getStyles()` on
+the server and inline the result in the document `<head>`. Then mount the same
+module-level sheet in the browser. Class names remain deterministic for the
+namespace and rule keys, and the inline critical CSS prevents a flash of
+unstyled content before the client bundle runs.
 
 ## Cleanup
 

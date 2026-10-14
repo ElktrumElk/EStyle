@@ -34,30 +34,38 @@ rules and exposes those rules in two forms:
 
 Inline styles are useful for local values and runtime overrides. Generated
 classes are necessary for CSS features that inline styles cannot express,
-including pseudo classes, descendant selectors, attribute selectors, and media
-queries.
+including pseudo classes, pseudo elements, descendant selectors, attribute
+selectors, `@keyframes`, and media queries.
 
 ```ts
-const styles = new Estyle()
+const styles = new Estyle();
+
+styles.defineKeyframes({
+  fadeIn: { from: { opacity: 0 }, to: { opacity: 1 } },
+});
+
+styles
   .defineRules({
     card: {
       padding: "1rem",
       backgroundColor: "white",
+      animationName: styles.keyframes.fadeIn,
       "&:hover": { transform: "translateY(-2px)" },
+      "&::after": { content: "\"→\"" },
     },
   })
   .mount("products");
 
 styles.rule.card();
-// { padding: "1rem", backgroundColor: "white" }
+// { padding: "1rem", backgroundColor: "white", animationName: "estyle-fadeIn-<hash>" }
 
 styles.classes.card;
 // "products-card-<deterministic-hash>"
 ```
 
-The hover rule is omitted from `rule.card()` because pseudo classes are not
-valid in an HTML inline style object. It is included in the stylesheet created
-by `mount()`.
+The hover and pseudo element rules are omitted from `rule.card()` because
+selectors are not valid in an HTML inline style object. They are included in the
+stylesheet created by `mount()`.
 
 ## Why `mount()` Exists
 
@@ -65,12 +73,23 @@ JavaScript style objects do not automatically become CSS. `defineRules()` stores
 typed definitions, but browsers need a real stylesheet before generated class
 names can affect an element.
 
-`mount(namespace)` performs four jobs:
+EStyle serializes rules into CSS and injects the stylesheet synchronously as
+rules are defined, so the browser applies the styles before the first paint and
+never flashes an unstyled document. This is the default (`autoInject: true`).
 
-1. It creates deterministic class names from the namespace and rule keys.
-2. It converts camelCase style properties into valid CSS declarations.
-3. It expands nested `&` selectors and declarative media rules.
-4. It writes the generated CSS into one managed `<style data-estyle>` element.
+`mount(namespace)` performs three jobs:
+
+1. It selects the namespace used for deterministic class and keyframe names.
+2. It expands nested `&` selectors, pseudo elements, keyframes, and media rules.
+3. It ensures the generated CSS is written into one managed stylesheet.
+
+The stylesheet is a `<style data-estyle>` element inserted at the front of
+`<head>` by default, or a constructable stylesheet registered in
+`document.adoptedStyleSheets` when `strategy: "adopted"` (or `"auto"` on a
+supporting browser) is used.
+
+To opt out of early injection, construct with `new Estyle({ autoInject: false })`
+and call `mount()` or `inject()` when you are ready.
 
 Given this rule:
 
@@ -97,20 +116,27 @@ EStyle generates CSS conceptually equivalent to:
 }
 ```
 
-### When `mount()` Is Required
+### When You Need Generated CSS
 
-Use `mount()` when using any of the following:
+Generated CSS is produced for any of the following, and is injected
+automatically in the browser:
 
 - `styles.classes.*`
 - `styles.className.*`
-- `&:hover`, `&:active`, `&:focus-visible`, or other pseudo selectors
+- `&:hover`, `&:active`, `&:focus-visible`, or other pseudo classes
+- `&::before`, `&::after`, or other pseudo elements
 - descendant, child, sibling, or attribute selectors
+- `defineKeyframes()` animations referenced through `styles.keyframes.*`
 - `defineMedia()` responsive rules
 - generated CSS custom-property declarations
 
-### When `mount()` Is Not Required
+Call `mount("namespace")` when you want to choose the namespace prefix used for
+the generated classes and the stylesheet. Without an explicit call, the
+namespace defaults to `"estyle"` (or the constructor `namespace` option).
 
-It is optional when only using inline rules:
+### When Generated CSS Is Not Needed
+
+It is unnecessary when only using inline rules:
 
 ```tsx
 const styles = new Estyle().defineRules({
@@ -500,6 +526,105 @@ function openPreview() {
 Actual use: plugin UIs, embedded widgets, previews, and dynamically-loaded
 micro-frontends that must remove all owned resources.
 
+## Example 13: Pseudo Elements
+
+```ts
+const quoteStyles = new Estyle()
+  .defineRules({
+    quote: {
+      position: "relative",
+      paddingLeft: "2.5rem",
+      "&::before": {
+        content: "\"“\"",
+        position: "absolute",
+        left: 0,
+        top: "-.5rem",
+        fontSize: "3rem",
+        lineHeight: 1,
+        color: "#4668df",
+      },
+      "&::after": {
+        content: "\"\"",
+        display: "block",
+        width: "3rem",
+        height: "2px",
+        marginTop: ".75rem",
+        backgroundColor: "#d75632",
+      },
+      "&::selection": {
+        backgroundColor: "#d8f36a",
+      },
+    },
+  })
+  .mount("pull-quote");
+```
+
+Why use EStyle here: decorative marks belong to the component's visual contract
+and must not pollute the DOM with extra elements.
+
+## Example 14: Keyframe Animations
+
+```ts
+const styles = new Estyle({ namespace: "announcements" });
+
+styles.defineKeyframes({
+  enter: {
+    from: { opacity: 0, transform: "translateY(12px)" },
+    "60%": { opacity: 1, transform: "translateY(-2px)" },
+    to: { opacity: 1, transform: "translateY(0)" },
+  },
+  pulse: {
+    "0%, 100%": { boxShadow: "0 0 0 0 rgba(215, 86, 50, .5)" },
+    "50%": { boxShadow: "0 0 0 10px rgba(215, 86, 50, 0)" },
+  },
+});
+
+styles
+  .defineRules({
+    toast: {
+      animationName: styles.keyframes.enter,
+      animationDuration: "280ms",
+      animationFillMode: "both",
+    },
+    dot: {
+      animationName: styles.keyframes.pulse,
+      animationDuration: "1.6s",
+      animationIterationCount: "infinite",
+    },
+  })
+  .mount();
+
+toast.className = styles.classes.toast;
+```
+
+Why use EStyle here: animation names are generated per namespace, so two
+features can both define `pulse` without clobbering each other.
+
+## Example 15: FOUC-Free Injection
+
+```ts
+// styles/criticalStyles.ts
+import { Estyle } from "elk-style-rule";
+
+// Injected at the front of <head> as this module loads, before first paint.
+export const criticalStyles = new Estyle()
+  .defineRules({
+    shell: { minHeight: "100vh", backgroundColor: "#f4f0e6" },
+  })
+  .mount("shell");
+```
+
+On the server, return the same CSS for the initial HTML response:
+
+```ts
+const css = criticalStyles.getStyles();
+const html = `<!doctype html><html><head><style>${css}</style></head>...`;
+```
+
+Why use EStyle here: the first paint already has the stylesheet, so users never
+see an unstyled frame, and client hydration reuses the same deterministic class
+names.
+
 ## `defineMedia()` Versus `mediaQuery()`
 
 Use `defineMedia()` for normal visual responsiveness:
@@ -558,30 +683,52 @@ Unstable namespaces create different class names and can break hydration.
 
 ## Security Behavior
 
-EStyle accepts nested selectors only when each selector starts with `&`. It
-rejects unsafe control characters and CSS block or at-rule injection syntax in
-nested selectors and media conditions. Dynamic untrusted values should still be
-validated before being used as CSS property values.
+EStyle accepts nested selectors only when each selector starts with `&`, which
+includes pseudo classes and pseudo elements. It rejects unsafe control
+characters and CSS block or at-rule injection syntax in nested selectors and
+media conditions. Keyframe stops are restricted to `from`, `to`, or percentage
+values. Dynamic untrusted values should still be validated before being used as
+CSS property values.
 
 ## Complete API Intent
 
-### `new Estyle()`
+### `new Estyle(options?)`
 
 Creates an isolated stylesheet controller. Instances do not share rule state.
+Options: `namespace`, `autoInject`, `prepend`, `nonce`, and `strategy`.
 
 ### `defineRules(rules)`
 
-Stores cloned base rules, infers rule keys, and prepares class names. Source
-objects are not mutated.
+Stores cloned base rules, infers rule keys, prepares class names, and injects the
+stylesheet. Source objects are not mutated.
 
 ### `defineMedia(media)`
 
-Stores responsive overrides that are serialized into CSS by `mount()`.
+Stores responsive overrides that are serialized into CSS as `@media` rules.
 
-### `mount(namespace)`
+### `defineKeyframes(frames)`
 
-Generates stable classes and writes base, nested, pseudo, and media CSS into one
-managed style element. It is SSR-safe.
+Stores cloned `@keyframes` definitions and generates a stable animation name for
+each one. Stops accept `from`, `to`, or percentage keys.
+
+### `keyframes`
+
+Typed map of keyframe keys to deterministic generated animation names. Use it for
+`animationName` and `animation` shorthand values.
+
+### `mount(namespace?, options?)`
+
+Sets the namespace, generates stable classes, and ensures the base, pseudo,
+keyframe, and media CSS is written into one managed stylesheet. It is SSR-safe.
+
+### `inject(options?)`
+
+Attaches the generated stylesheet on demand when `autoInject` is disabled.
+
+### `getStyles()` and `toString()`
+
+Return the generated CSS as a string, including keyframes and media queries.
+Intended for server rendering critical CSS. Available without a DOM.
 
 ### `classes` and `className`
 
@@ -591,7 +738,8 @@ return the same values.
 ### `rule`
 
 Returns typed functions that produce inline-compatible style objects. Runtime
-overrides win over base declarations. Nested selectors are omitted.
+overrides win over base declarations. Nested selectors and pseudo elements are
+omitted.
 
 ### `setTheme(theme)`
 
@@ -609,8 +757,9 @@ Applies browser `matchMedia` overrides to inline rule snapshots. Prefer
 
 ### `destroy()`
 
-Removes registered media listeners and the generated style element. Use it for
-dynamically-created sheets, not module-level application sheets.
+Removes registered media listeners, the generated style element, and any
+adopted stylesheet. Use it for dynamically-created sheets, not module-level
+application sheets.
 
 ## Recommended Project Structure
 
@@ -645,10 +794,15 @@ The class string exists, but no browser stylesheet has been inserted. Add
 Do not instantiate and mount inside frequently-called render functions. Define
 the sheet once at module scope.
 
-### Expecting Inline Pseudo Classes
+### Expecting Inline Pseudo Classes Or Elements
 
-`styles.rule.button()` intentionally omits `&:hover`. Use the mounted generated
-class for selectors.
+`styles.rule.button()` intentionally omits `&:hover`, `&::before`, and every
+other nested selector. Use the generated class for selectors.
+
+### Reusing Hand-Written Keyframe Names
+
+Prefer `styles.keyframes.name` from `defineKeyframes()` over a hand-written
+`animationName`. Generated names avoid collisions between independent sheets.
 
 ### Using JavaScript For Normal Breakpoints
 
@@ -665,8 +819,10 @@ sheets while other components still use them.
 Use EStyle when:
 
 - TypeScript should validate CSS properties.
-- Styles need pseudo classes or nested selectors.
+- Styles need pseudo classes, pseudo elements, or nested selectors.
+- Animations need typed, collision-free `@keyframes`.
 - Responsive CSS should stay close to component rules.
+- The first paint must never show an unstyled document.
 - The project should not depend on a framework-specific styling provider.
 - Both generated classes and inline runtime overrides are useful.
 - SSR-safe deterministic class names are required.
