@@ -1,6 +1,6 @@
 {
   "name": "elk-style-rule",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "description": "Framework-independent, type-safe CSS-in-JS for inline styles, generated classes, pseudo classes and elements, keyframes, themes, responsive media rules, and FOUC-free style injection.",
   "type": "module",
   "main": "./dist/index.js",
